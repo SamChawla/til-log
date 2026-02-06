@@ -25,6 +25,8 @@ interface DashboardProps {
 }
 
 const DASHBOARD_COMPONENT_ID = "dashboard-main";
+const ENTRIES_STORAGE_KEY = "til-log-entries";
+const GOALS_STORAGE_KEY = "til-log-goals";
 
 export default function Dashboard({ title = "Your Learning Dashboard", _inCanvas }: DashboardProps) {
   const { activeCanvasId, addComponent, createCanvas, canvases } = useCanvasStore();
@@ -38,6 +40,12 @@ export default function Dashboard({ title = "Your Learning Dashboard", _inCanvas
       targetCanvasId = newCanvas.id;
     }
     if (!targetCanvasId) return;
+
+    const alreadyInCanvas = useCanvasStore
+      .getState()
+      .getComponents(targetCanvasId)
+      .some((c) => c.componentId === DASHBOARD_COMPONENT_ID);
+    if (alreadyInCanvas) return;
 
     addComponent(targetCanvasId, {
       componentId: DASHBOARD_COMPONENT_ID,
@@ -64,7 +72,7 @@ function DashboardContent({ title }: { title: string }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const refresh = () => {
+    const refresh = (_event?: Event) => {
       setEntries(getEntries());
       setGoals(getGoals());
       setIsLoaded(true);
@@ -72,7 +80,8 @@ function DashboardContent({ title }: { title: string }) {
 
     const handleStorageChange = (e: StorageEvent) => {
       if (e.storageArea !== localStorage) return;
-      refresh();
+      if (e.key !== ENTRIES_STORAGE_KEY && e.key !== GOALS_STORAGE_KEY) return;
+      refresh(e);
     };
 
     const timer = window.setTimeout(refresh, 0);

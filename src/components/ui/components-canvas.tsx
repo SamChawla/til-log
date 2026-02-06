@@ -333,6 +333,7 @@ export const ComponentsCanvas: React.FC<
       }
 
       if (!activeCanvasId) return;
+      if (overData?.type !== "canvas-component") return;
       if (active.id === over.id) return;
 
       const overIndex = useCanvasStore
