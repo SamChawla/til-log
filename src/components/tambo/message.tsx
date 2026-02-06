@@ -891,6 +891,7 @@ const MessageRenderedComponentArea = React.forwardRef<
 >(({ className, children, ...props }, ref) => {
   const { message, role } = useMessageContext();
   const { addComponent, activeCanvasId, createCanvas, canvases } = useCanvasStore();
+  const { isIdle } = useTambo();
   const [autoAddStatus, setAutoAddStatus] = React.useState<
     "idle" | "added" | "failed"
   >("idle");
@@ -903,22 +904,39 @@ const MessageRenderedComponentArea = React.forwardRef<
   
   const canDrag = isDraggableComponent(componentType);
   const shouldAutoAdd = shouldAutoAddToCanvas(componentType);
+  const hasRenderedComponent = !!message.renderedComponent;
+
+  const latestComponentPropsRef = React.useRef(componentProps);
+  React.useEffect(() => {
+    latestComponentPropsRef.current = componentProps;
+  }, [componentProps]);
+
+  const fallbackCanvasId = canvases[0]?.id;
   const autoAddComponentId = React.useMemo(() => {
     if (!shouldAutoAdd) return null;
     return `tambo-msg-${message.id}-${componentType}`;
   }, [componentType, message.id, shouldAutoAdd]);
 
+  const autoAddPayload = React.useMemo(() => {
+    if (!shouldAutoAdd || !autoAddComponentId) return null;
+    return {
+      componentId: autoAddComponentId,
+      _inCanvas: true,
+      _componentType: componentType,
+      _sourceMessageId: message.id,
+    };
+  }, [autoAddComponentId, componentType, message.id, shouldAutoAdd]);
+
   // Auto-add TIL components to canvas
   React.useEffect(() => {
-    if (!shouldAutoAdd || autoAddStatus !== "idle" || !message.renderedComponent) {
+    if (!isIdle) {
       return;
     }
-    if (!autoAddComponentId) {
-      setAutoAddStatus("failed");
+    if (!autoAddPayload || autoAddStatus !== "idle" || !hasRenderedComponent) {
       return;
     }
     
-    let targetCanvasId = activeCanvasId ?? canvases[0]?.id;
+    let targetCanvasId = activeCanvasId ?? fallbackCanvasId;
     if (!targetCanvasId) {
       const newCanvas = createCanvas("TIL Log");
       targetCanvasId = newCanvas.id;
@@ -931,11 +949,8 @@ const MessageRenderedComponentArea = React.forwardRef<
 
     try {
       addComponent(targetCanvasId, {
-        ...componentProps,
-        componentId: autoAddComponentId,
-        _inCanvas: true,
-        _componentType: componentType,
-        _sourceMessageId: message.id,
+        ...latestComponentPropsRef.current,
+        ...autoAddPayload,
       });
       setAutoAddStatus("added");
     } catch (err) {
@@ -943,17 +958,14 @@ const MessageRenderedComponentArea = React.forwardRef<
       setAutoAddStatus("failed");
     }
   }, [
-    shouldAutoAdd,
+    isIdle,
+    autoAddPayload,
     autoAddStatus,
-    message.renderedComponent,
-    componentType,
-    componentProps,
-    autoAddComponentId,
+    hasRenderedComponent,
     activeCanvasId,
-    canvases,
+    fallbackCanvasId,
     addComponent,
     createCanvas,
-    message.id,
   ]);
 
   const addToDashboard = React.useCallback(() => {
