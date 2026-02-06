@@ -1,4 +1,5 @@
-import { LogEntry, Goal } from "@/types/schemas";
+import { z } from "zod";
+import { logEntrySchema, goalSchema, type LogEntry, type Goal } from "@/types/schemas";
 
 // Simple in-memory store (we'll use localStorage for persistence)
 const STORAGE_KEYS = {
@@ -9,11 +10,35 @@ const STORAGE_KEYS = {
 // Helper to safely access localStorage
 const isBrowser = typeof window !== "undefined";
 
+const entriesSchema = z.array(logEntrySchema);
+const goalsSchema = z.array(goalSchema);
+
+function readLocalStorageJson<T>(key: string, schema: z.ZodType<T>, fallback: T): T {
+  if (!isBrowser) return fallback;
+
+  const raw = localStorage.getItem(key);
+  if (!raw) return fallback;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    localStorage.removeItem(key);
+    return fallback;
+  }
+
+  const result = schema.safeParse(parsed);
+  if (!result.success) {
+    localStorage.removeItem(key);
+    return fallback;
+  }
+
+  return result.data;
+}
+
 // Log Entries
 export function getEntries(): LogEntry[] {
-  if (!isBrowser) return [];
-  const data = localStorage.getItem(STORAGE_KEYS.ENTRIES);
-  return data ? JSON.parse(data) : [];
+  return readLocalStorageJson(STORAGE_KEYS.ENTRIES, entriesSchema, []);
 }
 
 export function saveEntry(entry: LogEntry): void {
@@ -41,9 +66,7 @@ export function deleteEntry(id: string): void {
 
 // Goals
 export function getGoals(): Goal[] {
-  if (!isBrowser) return [];
-  const data = localStorage.getItem(STORAGE_KEYS.GOALS);
-  return data ? JSON.parse(data) : [];
+  return readLocalStorageJson(STORAGE_KEYS.GOALS, goalsSchema, []);
 }
 
 export function saveGoal(goal: Goal): void {
