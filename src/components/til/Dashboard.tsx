@@ -75,11 +75,12 @@ function DashboardContent({ title }: { title: string }) {
       refresh();
     };
 
-    refresh();
+    const timer = window.setTimeout(refresh, 0);
 
     window.addEventListener("storage", handleStorageChange);
     window.addEventListener(TIL_STORE_CHANGED_EVENT, refresh);
     return () => {
+      window.clearTimeout(timer);
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener(TIL_STORE_CHANGED_EVENT, refresh);
     };
