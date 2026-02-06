@@ -11,7 +11,8 @@ import {
   calculateLongestStreak,
   getTopTags 
 } from "@/lib/store";
-import { dashboardStatsSchema, LogEntry } from "@/types/schemas";
+import { dashboardStatsSchema, logEntrySchema, LogEntry } from "@/types/schemas";
+import { createLogEntryId } from "@/lib/ids";
 
 // ============================================
 // TAMBO COMPONENTS
@@ -144,7 +145,7 @@ export const tools: TamboTool[] = [
       sourceName?: string;
     }) => {
       const entry: LogEntry = {
-        id: `entry-${Date.now()}`,
+        id: createLogEntryId(),
         content,
         tags,
         source,
@@ -160,13 +161,6 @@ export const tools: TamboTool[] = [
       source: z.string().optional().describe("URL source if provided"),
       sourceName: z.string().optional().describe("Name of the source"),
     }),
-    outputSchema: z.object({
-      id: z.string(),
-      content: z.string(),
-      tags: z.array(z.string()),
-      source: z.string().optional(),
-      sourceName: z.string().optional(),
-      createdAt: z.string(),
-    }),
+    outputSchema: logEntrySchema,
   },
 ];

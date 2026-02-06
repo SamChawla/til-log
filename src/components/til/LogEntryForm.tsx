@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { LogEntry } from "@/types/schemas";
 import { saveEntry } from "@/lib/store";
+import { createLogEntryId } from "@/lib/ids";
 import { Plus, Link, Sparkles } from "lucide-react";
 
 interface LogEntryFormProps {
@@ -58,7 +59,7 @@ export default function LogEntryForm({ onSave, suggestedTags = [] }: LogEntryFor
     setIsSaving(true);
 
     const entry: LogEntry = {
-      id: `entry-${Date.now()}`,
+      id: createLogEntryId(),
       content: content.trim(),
       tags: allTags,
       source: source.trim() || undefined,
