@@ -10,6 +10,8 @@ const STORAGE_KEYS = {
 // Helper to safely access localStorage
 const isBrowser = typeof window !== "undefined";
 
+export const TIL_STORE_CHANGED_EVENT = "til-store-changed";
+
 const entriesSchema = z.array(logEntrySchema);
 const goalsSchema = z.array(goalSchema);
 
@@ -36,6 +38,11 @@ function readLocalStorageJson<T>(key: string, schema: z.ZodType<T>, fallback: T)
   return result.data;
 }
 
+function emitStoreChanged(): void {
+  if (!isBrowser) return;
+  window.dispatchEvent(new Event(TIL_STORE_CHANGED_EVENT));
+}
+
 // Log Entries
 export function getEntries(): LogEntry[] {
   return readLocalStorageJson(STORAGE_KEYS.ENTRIES, entriesSchema, []);
@@ -46,6 +53,7 @@ export function saveEntry(entry: LogEntry): void {
   const entries = getEntries();
   entries.unshift(entry); // Add to beginning
   localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(entries));
+  emitStoreChanged();
 }
 
 export function updateEntry(id: string, updates: Partial<LogEntry>): void {
@@ -55,6 +63,7 @@ export function updateEntry(id: string, updates: Partial<LogEntry>): void {
   if (index !== -1) {
     entries[index] = { ...entries[index], ...updates };
     localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(entries));
+    emitStoreChanged();
   }
 }
 
@@ -62,6 +71,7 @@ export function deleteEntry(id: string): void {
   if (!isBrowser) return;
   const entries = getEntries().filter((e) => e.id !== id);
   localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(entries));
+  emitStoreChanged();
 }
 
 // Goals
@@ -74,6 +84,7 @@ export function saveGoal(goal: Goal): void {
   const goals = getGoals();
   goals.unshift(goal);
   localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(goals));
+  emitStoreChanged();
 }
 
 export function updateGoal(id: string, updates: Partial<Goal>): void {
@@ -83,6 +94,7 @@ export function updateGoal(id: string, updates: Partial<Goal>): void {
   if (index !== -1) {
     goals[index] = { ...goals[index], ...updates };
     localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(goals));
+    emitStoreChanged();
   }
 }
 
@@ -90,6 +102,7 @@ export function deleteGoal(id: string): void {
   if (!isBrowser) return;
   const goals = getGoals().filter((g) => g.id !== id);
   localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(goals));
+  emitStoreChanged();
 }
 
 // Stats helpers

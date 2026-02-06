@@ -52,6 +52,20 @@ export const components: TamboComponent[] = [
   },
 ];
 
+type ComponentUiCapabilities = {
+  autoAddToCanvas?: boolean;
+};
+
+const componentUiCapabilities: Record<string, ComponentUiCapabilities> = {
+  Dashboard: { autoAddToCanvas: true },
+  LogEntryForm: { autoAddToCanvas: true },
+  LogEntryCard: { autoAddToCanvas: true },
+};
+
+export function shouldAutoAddToCanvas(componentType: string): boolean {
+  return !!componentUiCapabilities[componentType]?.autoAddToCanvas;
+}
+
 // ============================================
 // TAMBO TOOLS
 // ============================================

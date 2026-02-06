@@ -2,7 +2,7 @@
 
 import { markdownComponents } from "@/components/tambo/markdown-components";
 import { generateId, useCanvasStore } from "@/lib/canvas-storage";
-import { components } from "@/lib/tambo";
+import { components, shouldAutoAddToCanvas } from "@/lib/tambo";
 import {
   checkHasContent,
   getMessageImages,
@@ -881,14 +881,6 @@ function isDraggableComponent(componentType: string): boolean {
 }
 
 /**
- * Check if a component should auto-add to canvas
- */
-function shouldAutoAddToCanvas(componentType: string): boolean {
-  const autoAddComponents = ["Dashboard", "LogEntryForm", "LogEntryCard", "GoalCard", "GoalProgress", "RecentEntries", "ExportPreview"];
-  return autoAddComponents.includes(componentType);
-}
-
-/**
  * Displays the `renderedComponent` associated with an assistant message.
  * Auto-adds TIL Log components to canvas, shows drag option for Graph components.
  * @component Message.RenderedComponentArea
@@ -899,7 +891,9 @@ const MessageRenderedComponentArea = React.forwardRef<
 >(({ className, children, ...props }, ref) => {
   const { message, role } = useMessageContext();
   const { addComponent, activeCanvasId, createCanvas, canvases } = useCanvasStore();
-  const [addedToCanvas, setAddedToCanvas] = React.useState(false);
+  const [autoAddStatus, setAutoAddStatus] = React.useState<
+    "idle" | "added" | "failed"
+  >("idle");
 
   // Extract component info once to check if it's draggable
   const { componentType, componentProps } = React.useMemo(
@@ -909,34 +903,58 @@ const MessageRenderedComponentArea = React.forwardRef<
   
   const canDrag = isDraggableComponent(componentType);
   const shouldAutoAdd = shouldAutoAddToCanvas(componentType);
+  const autoAddComponentId = React.useMemo(() => {
+    if (!shouldAutoAdd) return null;
+    return `tambo-msg-${message.id}-${componentType}`;
+  }, [componentType, message.id, shouldAutoAdd]);
 
   // Auto-add TIL components to canvas
   React.useEffect(() => {
-    if (!shouldAutoAdd || addedToCanvas || !message.renderedComponent) return;
+    if (!shouldAutoAdd || autoAddStatus !== "idle" || !message.renderedComponent) {
+      return;
+    }
+    if (!autoAddComponentId) {
+      setAutoAddStatus("failed");
+      return;
+    }
     
-    let targetCanvasId = activeCanvasId;
+    let targetCanvasId = activeCanvasId ?? canvases[0]?.id;
     if (!targetCanvasId) {
-      // Check if there are any canvases
-      if (canvases.length > 0) {
-        targetCanvasId = canvases[0].id;
-      } else {
-        const newCanvas = createCanvas("TIL Log");
-        targetCanvasId = newCanvas.id;
-      }
+      const newCanvas = createCanvas("TIL Log");
+      targetCanvasId = newCanvas.id;
     }
 
-    if (!targetCanvasId) return;
+    if (!targetCanvasId) {
+      setAutoAddStatus("failed");
+      return;
+    }
 
-    const componentId = generateId();
-    addComponent(targetCanvasId, {
-      ...componentProps,
-      componentId,
-      _inCanvas: true,
-      _componentType: componentType,
-    });
-    
-    setAddedToCanvas(true);
-  }, [shouldAutoAdd, addedToCanvas, message.renderedComponent, componentType, componentProps, activeCanvasId, canvases, addComponent, createCanvas]);
+    try {
+      addComponent(targetCanvasId, {
+        ...componentProps,
+        componentId: autoAddComponentId,
+        _inCanvas: true,
+        _componentType: componentType,
+        _sourceMessageId: message.id,
+      });
+      setAutoAddStatus("added");
+    } catch (err) {
+      console.error("Failed to auto-add component to canvas", err);
+      setAutoAddStatus("failed");
+    }
+  }, [
+    shouldAutoAdd,
+    autoAddStatus,
+    message.renderedComponent,
+    componentType,
+    componentProps,
+    autoAddComponentId,
+    activeCanvasId,
+    canvases,
+    addComponent,
+    createCanvas,
+    message.id,
+  ]);
 
   const addToDashboard = React.useCallback(() => {
     let targetCanvasId = activeCanvasId;
@@ -981,8 +999,8 @@ const MessageRenderedComponentArea = React.forwardRef<
     return null;
   }
 
-  // For auto-added components, show a simple confirmation message instead of the component
-  if (shouldAutoAdd) {
+  // For auto-added components, show a status message and avoid rendering inline.
+  if (shouldAutoAdd && autoAddStatus !== "failed") {
     return (
       <div
         ref={ref}
@@ -990,12 +1008,33 @@ const MessageRenderedComponentArea = React.forwardRef<
         data-slot="message-rendered-component-area"
         {...props}
       >
-        <div className="inline-flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-          <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          <span>Added <strong>{componentType}</strong> to canvas →</span>
-        </div>
+        {autoAddStatus === "added" ? (
+          <div className="inline-flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+            <svg
+              className="w-4 h-4 text-green-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+            <span>
+              Added <strong>{componentType}</strong> to canvas →
+            </span>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>
+              Adding <strong>{componentType}</strong> to canvas…
+            </span>
+          </div>
+        )}
       </div>
     );
   }

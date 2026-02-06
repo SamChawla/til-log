@@ -9,7 +9,13 @@ import {
   Calendar,
   Tag
 } from "lucide-react";
-import { getEntries, getGoals, calculateStreak, getTopTags } from "@/lib/store";
+import {
+  calculateStreak,
+  getEntries,
+  getGoals,
+  getTopTags,
+  TIL_STORE_CHANGED_EVENT,
+} from "@/lib/store";
 import { LogEntry, Goal } from "@/types/schemas";
 import { useCanvasStore } from "@/lib/canvas-storage";
 
@@ -21,12 +27,12 @@ interface DashboardProps {
 const DASHBOARD_COMPONENT_ID = "dashboard-main";
 
 export default function Dashboard({ title = "Your Learning Dashboard", _inCanvas }: DashboardProps) {
-  const { activeCanvasId, addComponent, createCanvas } = useCanvasStore();
+  const { activeCanvasId, addComponent, createCanvas, canvases } = useCanvasStore();
 
   useEffect(() => {
     if (_inCanvas) return;
 
-    let targetCanvasId = activeCanvasId;
+    let targetCanvasId = activeCanvasId ?? canvases[0]?.id;
     if (!targetCanvasId) {
       const newCanvas = createCanvas();
       targetCanvasId = newCanvas.id;
@@ -39,7 +45,7 @@ export default function Dashboard({ title = "Your Learning Dashboard", _inCanvas
       _inCanvas: true,
       title,
     });
-  }, [_inCanvas, activeCanvasId, addComponent, createCanvas, title]);
+  }, [_inCanvas, activeCanvasId, addComponent, canvases, createCanvas, title]);
 
   if (!_inCanvas) {
     return (
@@ -58,9 +64,25 @@ function DashboardContent({ title }: { title: string }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    setEntries(getEntries());
-    setGoals(getGoals());
-    setIsLoaded(true);
+    const refresh = () => {
+      setEntries(getEntries());
+      setGoals(getGoals());
+      setIsLoaded(true);
+    };
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.storageArea !== localStorage) return;
+      refresh();
+    };
+
+    refresh();
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener(TIL_STORE_CHANGED_EVENT, refresh);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener(TIL_STORE_CHANGED_EVENT, refresh);
+    };
   }, []);
 
   if (!isLoaded) {
