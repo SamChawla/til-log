@@ -12,11 +12,29 @@ interface LogEntryCardProps {
 
 export default function LogEntryCard({ entry, onDelete }: LogEntryCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleted, setIsDeleted] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleDelete = () => {
+    if (isDeleting) return;
+
+    const didConfirm = window.confirm(
+      "Delete this entry? This action can't be undone.",
+    );
+    if (!didConfirm) return;
+
+    setDeleteError(null);
     setIsDeleting(true);
-    deleteEntry(entry.id);
-    onDelete?.(entry.id);
+
+    try {
+      deleteEntry(entry.id);
+      onDelete?.(entry.id);
+      setIsDeleted(true);
+    } catch (error) {
+      console.error(error);
+      setDeleteError("Failed to delete entry. Please try again.");
+      setIsDeleting(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -28,7 +46,7 @@ export default function LogEntryCard({ entry, onDelete }: LogEntryCardProps) {
     });
   };
 
-  if (isDeleting) return null;
+  if (isDeleted) return null;
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow">
@@ -40,12 +58,17 @@ export default function LogEntryCard({ entry, onDelete }: LogEntryCardProps) {
         </div>
         <button
           onClick={handleDelete}
-          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+          disabled={isDeleting}
+          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors disabled:opacity-60 disabled:hover:text-gray-400 disabled:hover:bg-transparent"
           title="Delete entry"
         >
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
+
+      {deleteError && (
+        <p className="text-sm text-red-600 mb-3">{deleteError}</p>
+      )}
 
       {/* Content */}
       <p className="text-gray-800 mb-4 leading-relaxed">{entry.content}</p>
