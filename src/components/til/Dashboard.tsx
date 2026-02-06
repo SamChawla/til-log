@@ -72,7 +72,10 @@ function DashboardContent({ title }: { title: string }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const refresh = (_event?: Event) => {
+    const refresh = (event?: Event) => {
+      if (event) {
+        void event;
+      }
       setEntries(getEntries());
       setGoals(getGoals());
       setIsLoaded(true);
