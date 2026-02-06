@@ -881,9 +881,16 @@ function isDraggableComponent(componentType: string): boolean {
 }
 
 /**
+ * Check if a component should auto-add to canvas
+ */
+function shouldAutoAddToCanvas(componentType: string): boolean {
+  const autoAddComponents = ["Dashboard", "LogEntryForm", "LogEntryCard", "GoalCard", "GoalProgress", "RecentEntries", "ExportPreview"];
+  return autoAddComponents.includes(componentType);
+}
+
+/**
  * Displays the `renderedComponent` associated with an assistant message.
- * Shows a button to view in canvas if a canvas space exists, otherwise renders inline.
- * Only renders if the message role is 'assistant' and `message.renderedComponent` exists.
+ * Auto-adds TIL Log components to canvas, shows drag option for Graph components.
  * @component Message.RenderedComponentArea
  */
 const MessageRenderedComponentArea = React.forwardRef<
@@ -891,14 +898,45 @@ const MessageRenderedComponentArea = React.forwardRef<
   MessageRenderedComponentAreaProps
 >(({ className, children, ...props }, ref) => {
   const { message, role } = useMessageContext();
-  const { addComponent, activeCanvasId, createCanvas } = useCanvasStore();
+  const { addComponent, activeCanvasId, createCanvas, canvases } = useCanvasStore();
+  const [addedToCanvas, setAddedToCanvas] = React.useState(false);
 
   // Extract component info once to check if it's draggable
   const { componentType, componentProps } = React.useMemo(
     () => extractComponentInfo(message.renderedComponent),
     [message.renderedComponent],
   );
+  
   const canDrag = isDraggableComponent(componentType);
+  const shouldAutoAdd = shouldAutoAddToCanvas(componentType);
+
+  // Auto-add TIL components to canvas
+  React.useEffect(() => {
+    if (!shouldAutoAdd || addedToCanvas || !message.renderedComponent) return;
+    
+    let targetCanvasId = activeCanvasId;
+    if (!targetCanvasId) {
+      // Check if there are any canvases
+      if (canvases.length > 0) {
+        targetCanvasId = canvases[0].id;
+      } else {
+        const newCanvas = createCanvas("TIL Log");
+        targetCanvasId = newCanvas.id;
+      }
+    }
+
+    if (!targetCanvasId) return;
+
+    const componentId = generateId();
+    addComponent(targetCanvasId, {
+      ...componentProps,
+      componentId,
+      _inCanvas: true,
+      _componentType: componentType,
+    });
+    
+    setAddedToCanvas(true);
+  }, [shouldAutoAdd, addedToCanvas, message.renderedComponent, componentType, componentProps, activeCanvasId, canvases, addComponent, createCanvas]);
 
   const addToDashboard = React.useCallback(() => {
     let targetCanvasId = activeCanvasId;
@@ -943,6 +981,25 @@ const MessageRenderedComponentArea = React.forwardRef<
     return null;
   }
 
+  // For auto-added components, show a simple confirmation message instead of the component
+  if (shouldAutoAdd) {
+    return (
+      <div
+        ref={ref}
+        className={cn("px-4 py-2", className)}
+        data-slot="message-rendered-component-area"
+        {...props}
+      >
+        <div className="inline-flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+          <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Added <strong>{componentType}</strong> to canvas →</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={ref}
@@ -978,6 +1035,7 @@ const MessageRenderedComponentArea = React.forwardRef<
     </div>
   );
 });
+
 MessageRenderedComponentArea.displayName = "Message.RenderedComponentArea";
 
 // --- Exports ---

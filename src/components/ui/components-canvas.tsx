@@ -193,7 +193,7 @@ export const ComponentsCanvas: React.FC<
     const { _componentType, componentId, canvasId, _inCanvas, ...cleanProps } =
       componentProps;
 
-    return <Component {...cleanProps} />;
+    return <Component {...cleanProps} _inCanvas={true} />;
   };
 
   const SortableItem: React.FC<{ componentProps: CanvasComponentProps }> = ({
@@ -209,6 +209,9 @@ export const ComponentsCanvas: React.FC<
 
     // Extract the necessary props for the delete button
     const { canvasId, componentId, _componentType } = componentProps;
+
+    // Check if this component has interactive elements (forms, inputs)
+    const isInteractiveComponent = ["LogEntryForm", "GoalCard", "ExportPreview"].includes(_componentType || "");
 
     return (
       <div className="relative group">
@@ -230,33 +233,73 @@ export const ComponentsCanvas: React.FC<
         </div>
 
         {/* Sortable content - make it draggable to other canvases */}
-        <div
-          ref={setNodeRef}
-          style={style}
-          {...attributes}
-          {...listeners}
-          draggable={true}
-          onDragStart={(e) => {
-            // Set drag data for moving between canvases
-            const dragData = {
-              component: _componentType,
-              props: {
-                ...componentProps,
-                _inCanvas: true,
-                componentId,
-                canvasId,
-              },
-            };
-            e.dataTransfer.setData(
-              "application/json",
-              JSON.stringify(dragData),
-            );
-            e.dataTransfer.effectAllowed = "move";
-          }}
-          className="cursor-move"
-        >
-          {renderComponent(componentProps)}
-        </div>
+        {/* For interactive components, only apply drag to a handle, not the whole component */}
+        {isInteractiveComponent ? (
+          <div ref={setNodeRef} style={style}>
+            {/* Drag handle for interactive components */}
+            <div
+              {...attributes}
+              {...listeners}
+              className="cursor-move bg-gray-100 hover:bg-gray-200 rounded-t-lg px-3 py-1 flex items-center justify-center border-b border-gray-200"
+              draggable={true}
+              onDragStart={(e) => {
+                const dragData = {
+                  component: _componentType,
+                  props: {
+                    ...componentProps,
+                    _inCanvas: true,
+                    componentId,
+                    canvasId,
+                  },
+                };
+                e.dataTransfer.setData(
+                  "application/json",
+                  JSON.stringify(dragData),
+                );
+                e.dataTransfer.effectAllowed = "move";
+              }}
+            >
+              <div className="flex items-center gap-1 text-xs text-gray-400">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z" />
+                </svg>
+                <span>Drag to move</span>
+              </div>
+            </div>
+            {/* Component content - not draggable, allows interaction */}
+            <div>
+              {renderComponent(componentProps)}
+            </div>
+          </div>
+        ) : (
+          <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            draggable={true}
+            onDragStart={(e) => {
+              // Set drag data for moving between canvases
+              const dragData = {
+                component: _componentType,
+                props: {
+                  ...componentProps,
+                  _inCanvas: true,
+                  componentId,
+                  canvasId,
+                },
+              };
+              e.dataTransfer.setData(
+                "application/json",
+                JSON.stringify(dragData),
+              );
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            className="cursor-move"
+          >
+            {renderComponent(componentProps)}
+          </div>
+        )}
       </div>
     );
   };
