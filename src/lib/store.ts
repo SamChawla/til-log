@@ -131,6 +131,33 @@ export function calculateStreak(entries: LogEntry[]): number {
   return streak;
 }
 
+export function calculateLongestStreak(entries: LogEntry[]): number {
+  if (entries.length === 0) return 0;
+
+  const uniqueDatesAsc = entries
+    .map((e) => {
+      const d = new Date(e.createdAt);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    })
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .sort((a, b) => a - b);
+
+  let longest = 1;
+  let current = 1;
+
+  for (let i = 1; i < uniqueDatesAsc.length; i++) {
+    if (uniqueDatesAsc[i] === uniqueDatesAsc[i - 1] + 86400000) {
+      current++;
+      longest = Math.max(longest, current);
+    } else {
+      current = 1;
+    }
+  }
+
+  return longest;
+}
+
 export function getTopTags(entries: LogEntry[], limit = 5): { tag: string; count: number }[] {
   const tagCounts: Record<string, number> = {};
   

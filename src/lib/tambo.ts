@@ -8,9 +8,10 @@ import {
   getGoals, 
   saveEntry, 
   calculateStreak, 
+  calculateLongestStreak,
   getTopTags 
 } from "@/lib/store";
-import { LogEntry } from "@/types/schemas";
+import { dashboardStatsSchema, LogEntry } from "@/types/schemas";
 
 // ============================================
 // TAMBO COMPONENTS
@@ -89,19 +90,14 @@ export const tools: TamboTool[] = [
       return {
         totalEntries: entries.length,
         currentStreak: calculateStreak(entries),
+        longestStreak: calculateLongestStreak(entries),
         topTags: getTopTags(entries, 5),
         thisWeekEntries,
         activeGoals: goals.filter((g) => g.status === "active").length,
       };
     },
     inputSchema: z.object({}),
-    outputSchema: z.object({
-      totalEntries: z.number(),
-      currentStreak: z.number(),
-      topTags: z.array(z.object({ tag: z.string(), count: z.number() })),
-      thisWeekEntries: z.number(),
-      activeGoals: z.number(),
-    }),
+    outputSchema: dashboardStatsSchema,
   },
   {
     name: "search-entries-by-tag",
