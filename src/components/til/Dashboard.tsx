@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Flame,
   BookOpen,
@@ -75,6 +75,7 @@ function DashboardContent({ title }: { title: string }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const confirmTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const refresh = () => {
@@ -95,6 +96,9 @@ function DashboardContent({ title }: { title: string }) {
     window.addEventListener(TIL_STORE_CHANGED_EVENT, refresh);
     return () => {
       window.clearTimeout(timer);
+      if (confirmTimerRef.current !== null) {
+        window.clearTimeout(confirmTimerRef.current);
+      }
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener(TIL_STORE_CHANGED_EVENT, refresh);
     };
@@ -104,8 +108,19 @@ function DashboardContent({ title }: { title: string }) {
     if (!confirmClear) {
       setConfirmClear(true);
       // Auto-cancel confirmation after 5 seconds
-      setTimeout(() => setConfirmClear(false), 5000);
+      if (confirmTimerRef.current !== null) {
+        window.clearTimeout(confirmTimerRef.current);
+      }
+      confirmTimerRef.current = window.setTimeout(() => {
+        setConfirmClear(false);
+        confirmTimerRef.current = null;
+      }, 5000);
       return;
+    }
+
+    if (confirmTimerRef.current !== null) {
+      window.clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = null;
     }
     clearAllData();
     setConfirmClear(false);
