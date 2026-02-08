@@ -177,7 +177,7 @@ export const tools: TamboTool[] = [
       const goal: Goal = {
         id: createGoalId(),
         title, description, deadline, relatedTags,
-        targetEntries: targetEntries ?? 10,
+        targetEntries,
         status: "active",
         createdAt: new Date().toISOString(),
       };
@@ -189,15 +189,17 @@ export const tools: TamboTool[] = [
       description: z.string().optional().describe("Goal description"),
       deadline: z.string().optional().describe("Target date (ISO format)"),
       relatedTags: z.array(z.string()).describe("Tags that count toward this goal"),
-      targetEntries: z.number().optional().describe("Number of entries to target"),
+      targetEntries: z.number().int().positive().optional().describe("Number of entries to target"),
     }),
     outputSchema: goalSchema,
   },
   {
     name: "update-goal-status",
-    description: "Update the status of a learning goal (active, completed, paused).",
-    tool: ({ goalId, status }: { goalId: string; status: string }) => {
-      updateGoal(goalId, { status: status as "active" | "completed" | "paused" });
+    description: "Update the status of a learning goal (active, completed, paused). Returns null if the goal doesn't exist.",
+    tool: ({ goalId, status }: { goalId: string; status: Goal["status"] }) => {
+      const goal = getGoals().find((g) => g.id === goalId);
+      if (!goal) return null;
+      updateGoal(goalId, { status });
       return getGoals().find((g) => g.id === goalId) || null;
     },
     inputSchema: z.object({
