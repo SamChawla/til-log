@@ -1,4 +1,7 @@
-let fallbackCounter = 0;
+const fallbackCounters: Record<"entry" | "goal", number> = {
+  entry: 0,
+  goal: 0,
+};
 
 function createId(prefix: "entry" | "goal"): string {
   const uuid =
@@ -15,14 +18,14 @@ function createId(prefix: "entry" | "goal"): string {
       ? globalThis.performance.now()
       : null;
 
-  fallbackCounter += 1;
+  fallbackCounters[prefix] += 1;
 
   const time =
     typeof perfNow === "number"
       ? `${Date.now()}-${String(perfNow).replace(".", "-")}`
       : `${Date.now()}`;
 
-  return `${prefix}-${time}-${fallbackCounter}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}-${time}-${fallbackCounters[prefix]}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function createLogEntryId(): string {
