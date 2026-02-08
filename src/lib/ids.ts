@@ -1,9 +1,11 @@
-const fallbackCounters: Record<"entry" | "goal", number> = {
+type IdPrefix = "entry" | "goal";
+
+const fallbackCounters: Record<IdPrefix, number> = {
   entry: 0,
   goal: 0,
 };
 
-function createId(prefix: "entry" | "goal"): string {
+function createId(prefix: IdPrefix): string {
   const uuid =
     typeof globalThis.crypto !== "undefined" &&
     typeof globalThis.crypto.randomUUID === "function"
