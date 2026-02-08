@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, X } from "lucide-react";
 
 export interface ToastProps {
@@ -8,6 +8,7 @@ export interface ToastProps {
   type?: "success" | "info" | "error";
   duration?: number;
   onClose?: () => void;
+  topRem?: number;
 }
 
 export function Toast({
@@ -15,23 +16,49 @@ export function Toast({
   type = "success",
   duration = 3000,
   onClose,
+  topRem = 1,
 }: ToastProps) {
   const [isVisible, setIsVisible] = useState(true);
   const [isLeaving, setIsLeaving] = useState(false);
+  const fadeTimerRef = useRef<number | null>(null);
+  const removeTimerRef = useRef<number | null>(null);
+
+  const close = useCallback(
+    (delayMs: number) => {
+      if (fadeTimerRef.current) window.clearTimeout(fadeTimerRef.current);
+      if (removeTimerRef.current) window.clearTimeout(removeTimerRef.current);
+
+      setIsLeaving(true);
+      fadeTimerRef.current = null;
+      removeTimerRef.current = window.setTimeout(() => {
+        setIsVisible(false);
+        onClose?.();
+      }, delayMs);
+    },
+    [onClose]
+  );
 
   useEffect(() => {
-    const fadeTimer = setTimeout(() => {
-      setIsLeaving(true);
-    }, duration - 300);
+    const safeDuration = Math.max(duration, 300);
+    const fadeDelay = Math.max(0, safeDuration - 300);
 
-    const removeTimer = setTimeout(() => {
+    fadeTimerRef.current = window.setTimeout(() => {
+      setIsLeaving(true);
+      fadeTimerRef.current = null;
+    }, fadeDelay);
+
+    removeTimerRef.current = window.setTimeout(() => {
       setIsVisible(false);
       onClose?.();
-    }, duration);
+      removeTimerRef.current = null;
+    }, safeDuration);
 
     return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(removeTimer);
+      if (fadeTimerRef.current) window.clearTimeout(fadeTimerRef.current);
+      if (removeTimerRef.current) window.clearTimeout(removeTimerRef.current);
+
+      fadeTimerRef.current = null;
+      removeTimerRef.current = null;
     };
   }, [duration, onClose]);
 
@@ -46,7 +73,8 @@ export function Toast({
 
   return (
     <div
-      className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] transition-all duration-300 ${
+      style={{ top: `${topRem}rem` }}
+      className={`fixed left-1/2 -translate-x-1/2 z-[9999] transition-all duration-300 ${
         isLeaving ? "opacity-0 -translate-y-2" : "opacity-100 translate-y-0"
       }`}
     >
@@ -57,11 +85,7 @@ export function Toast({
         <span className="text-sm font-medium flex-1">{message}</span>
         <button
           onClick={() => {
-            setIsLeaving(true);
-            setTimeout(() => {
-              setIsVisible(false);
-              onClose?.();
-            }, 300);
+            close(300);
           }}
           className="p-0.5 hover:bg-white/20 rounded transition-colors flex-shrink-0"
         >
@@ -84,30 +108,30 @@ export function useToast() {
     { id: number; message: string; type: "success" | "info" | "error" }[]
   >([]);
 
-  let idCounter = 0;
+  const idCounterRef = useRef(0);
 
-  const toast = (
-    message: string,
-    type: "success" | "info" | "error" = "success"
-  ) => {
-    const id = Date.now() + ++idCounter;
-    setToasts((prev) => [...prev, { id, message, type }]);
-  };
+  const toast = useCallback(
+    (message: string, type: "success" | "info" | "error" = "success") => {
+      const id = Date.now() + ++idCounterRef.current;
+      setToasts((prev) => [...prev, { id, message, type }]);
+    },
+    []
+  );
 
-  const removeToast = (id: number) => {
+  const removeToast = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
+  }, []);
 
   const ToastContainer = () => (
     <>
       {toasts.map((t, i) => (
-        <div key={t.id} style={{ top: `${1 + i * 4}rem` }} className="fixed left-1/2 -translate-x-1/2 z-[9999]">
-          <Toast
-            message={t.message}
-            type={t.type}
-            onClose={() => removeToast(t.id)}
-          />
-        </div>
+        <Toast
+          key={t.id}
+          message={t.message}
+          type={t.type}
+          topRem={1 + i * 4}
+          onClose={() => removeToast(t.id)}
+        />
       ))}
     </>
   );

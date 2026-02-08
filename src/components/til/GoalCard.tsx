@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Goal, LogEntry } from "@/types/schemas";
-import { updateGoal, deleteGoal, getEntries } from "@/lib/store";
+import {
+  updateGoal,
+  deleteGoal,
+  getEntries,
+  TIL_STORE_CHANGED_EVENT,
+} from "@/lib/store";
 import {
   Target,
   Trash2,
@@ -26,21 +31,36 @@ export default function GoalCard({ goal, onUpdate, onDelete }: GoalCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleted, setIsDeleted] = useState(false);
 
-  const entries: LogEntry[] = getEntries();
-  const relatedEntries = entries.filter((e) =>
-    e.tags.some((t) =>
-      goal.relatedTags.some(
-        (gt) => gt.toLowerCase() === t.toLowerCase()
-      )
-    )
-  );
+  const [entries, setEntries] = useState<LogEntry[]>([]);
 
-  const progress = goal.targetEntries
-    ? Math.min(
-        Math.round((relatedEntries.length / goal.targetEntries) * 100),
-        100
-      )
-    : 0;
+  useEffect(() => {
+    const refresh = () => {
+      setEntries(getEntries());
+    };
+
+    refresh();
+    window.addEventListener(TIL_STORE_CHANGED_EVENT, refresh);
+    return () => {
+      window.removeEventListener(TIL_STORE_CHANGED_EVENT, refresh);
+    };
+  }, []);
+
+  const relatedEntries = useMemo(() => {
+    if (goal.relatedTags.length === 0) return [];
+
+    const relatedTagsLower = goal.relatedTags.map((t) => t.toLowerCase());
+    return entries.filter((e) =>
+      e.tags.some((t) => relatedTagsLower.includes(t.toLowerCase()))
+    );
+  }, [entries, goal.relatedTags]);
+
+  const progress = useMemo(() => {
+    if (!goal.targetEntries || goal.targetEntries <= 0) return 0;
+    return Math.min(
+      Math.round((relatedEntries.length / goal.targetEntries) * 100),
+      100
+    );
+  }, [goal.targetEntries, relatedEntries.length]);
 
   const handleStatusChange = (
     newStatus: "active" | "completed" | "paused"

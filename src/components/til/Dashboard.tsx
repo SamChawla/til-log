@@ -96,11 +96,13 @@ function DashboardContent({ title }: { title: string }) {
     window.addEventListener(TIL_STORE_CHANGED_EVENT, refresh);
     return () => {
       window.clearTimeout(timer);
-      if (confirmTimerRef.current !== null) {
-        window.clearTimeout(confirmTimerRef.current);
-      }
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener(TIL_STORE_CHANGED_EVENT, refresh);
+
+      if (confirmTimerRef.current !== null) {
+        window.clearTimeout(confirmTimerRef.current);
+        confirmTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -110,6 +112,7 @@ function DashboardContent({ title }: { title: string }) {
       // Auto-cancel confirmation after 5 seconds
       if (confirmTimerRef.current !== null) {
         window.clearTimeout(confirmTimerRef.current);
+        confirmTimerRef.current = null;
       }
       confirmTimerRef.current = window.setTimeout(() => {
         setConfirmClear(false);
