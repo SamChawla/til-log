@@ -20,11 +20,15 @@ export function Toast({
 }: ToastProps) {
   const [isVisible, setIsVisible] = useState(true);
   const [isLeaving, setIsLeaving] = useState(false);
+  const hasClosedRef = useRef(false);
   const fadeTimerRef = useRef<number | null>(null);
   const removeTimerRef = useRef<number | null>(null);
 
   const close = useCallback(
     (delayMs: number) => {
+      if (hasClosedRef.current) return;
+      hasClosedRef.current = true;
+
       if (fadeTimerRef.current) window.clearTimeout(fadeTimerRef.current);
       if (removeTimerRef.current) window.clearTimeout(removeTimerRef.current);
 
@@ -33,6 +37,7 @@ export function Toast({
       removeTimerRef.current = window.setTimeout(() => {
         setIsVisible(false);
         onClose?.();
+        removeTimerRef.current = null;
       }, delayMs);
     },
     [onClose]
@@ -48,6 +53,9 @@ export function Toast({
     }, fadeDelay);
 
     removeTimerRef.current = window.setTimeout(() => {
+      if (hasClosedRef.current) return;
+      hasClosedRef.current = true;
+
       setIsVisible(false);
       onClose?.();
       removeTimerRef.current = null;
