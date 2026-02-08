@@ -7,6 +7,7 @@ import {
   DndContext,
   DragEndEvent,
   PointerSensor,
+  useDroppable,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -193,14 +194,42 @@ export const ComponentsCanvas: React.FC<
     const { _componentType, componentId, canvasId, _inCanvas, ...cleanProps } =
       componentProps;
 
-    return <Component {...cleanProps} />;
+    return <Component {...cleanProps} _inCanvas={true} />;
+  };
+
+  const CanvasTab: React.FC<{ canvasId: string; children: React.ReactNode }> = ({
+    canvasId,
+    children,
+  }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id: `canvas:${canvasId}`,
+      data: { type: "canvas-tab", canvasId },
+    });
+
+    return (
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "rounded",
+          isOver && "bg-muted/40",
+        )}
+      >
+        {children}
+      </div>
+    );
   };
 
   const SortableItem: React.FC<{ componentProps: CanvasComponentProps }> = ({
     componentProps,
   }) => {
     const { attributes, listeners, setNodeRef, transform, transition } =
-      useSortable({ id: componentProps.componentId });
+      useSortable({
+        id: componentProps.componentId,
+        data: {
+          type: "canvas-component",
+          canvasId: componentProps.canvasId,
+        },
+      });
 
     const style = {
       transform: CSS.Transform.toString(transform),
@@ -209,6 +238,9 @@ export const ComponentsCanvas: React.FC<
 
     // Extract the necessary props for the delete button
     const { canvasId, componentId, _componentType } = componentProps;
+
+    // Check if this component has interactive elements (forms, inputs)
+    const isInteractiveComponent = ["LogEntryForm", "GoalCard", "ExportPreview"].includes(_componentType || "");
 
     return (
       <div className="relative group">
@@ -230,32 +262,46 @@ export const ComponentsCanvas: React.FC<
         </div>
 
         {/* Sortable content - make it draggable to other canvases */}
+        {/* For interactive components, only apply drag to a handle, not the whole component */}
         <div
           ref={setNodeRef}
           style={style}
-          {...attributes}
-          {...listeners}
-          draggable={true}
-          onDragStart={(e) => {
-            // Set drag data for moving between canvases
-            const dragData = {
-              component: _componentType,
-              props: {
-                ...componentProps,
-                _inCanvas: true,
-                componentId,
-                canvasId,
-              },
-            };
-            e.dataTransfer.setData(
-              "application/json",
-              JSON.stringify(dragData),
-            );
-            e.dataTransfer.effectAllowed = "move";
-          }}
-          className="cursor-move"
         >
-          {renderComponent(componentProps)}
+          {isInteractiveComponent ? (
+            <div
+              {...attributes}
+              {...listeners}
+              className="cursor-move bg-gray-100 hover:bg-gray-200 rounded-t-lg px-3 py-1 flex items-center justify-center border-b border-gray-200"
+            >
+              <div className="flex items-center gap-1 text-xs text-gray-400">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z" />
+                </svg>
+                <span>Drag to move</span>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              {...attributes}
+              {...listeners}
+              className={cn(
+                "absolute left-2 top-2 z-50 rounded bg-background border border-border p-1",
+                "opacity-0 group-hover:opacity-100 transition-opacity cursor-move",
+              )}
+              title="Drag to move"
+            >
+              <svg
+                className="w-4 h-4 text-muted-foreground"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM14 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z" />
+              </svg>
+            </button>
+          )}
+
+          <div>{renderComponent(componentProps)}</div>
         </div>
       </div>
     );
@@ -264,31 +310,54 @@ export const ComponentsCanvas: React.FC<
   const handleDragEnd = React.useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
-      if (!over || !activeCanvasId) return;
+      if (!over) return;
 
-      if (active.id !== over.id) {
-        const overIndex = useCanvasStore
-          .getState()
-          .getComponents(activeCanvasId)
-          .findIndex((c) => c.componentId === over.id);
-        if (overIndex === -1) return;
-        useCanvasStore
-          .getState()
-          .reorderComponent(activeCanvasId, active.id as string, overIndex);
+      const activeData = active.data.current as
+        | { type?: string; canvasId?: string }
+        | undefined;
+      const overData = over.data.current as
+        | { type?: string; canvasId?: string }
+        | undefined;
+
+      if (activeData?.type !== "canvas-component") return;
+
+      if (overData?.type === "canvas-tab") {
+        const sourceCanvasId = activeData.canvasId;
+        const targetCanvasId = overData.canvasId;
+        if (!sourceCanvasId || !targetCanvasId) return;
+        if (sourceCanvasId === targetCanvasId) return;
+
+        moveComponent(sourceCanvasId, targetCanvasId, active.id as string);
+        setActiveCanvas(targetCanvasId);
+        return;
       }
+
+      if (!activeCanvasId) return;
+      if (overData?.type !== "canvas-component") return;
+      if (active.id === over.id) return;
+
+      const overIndex = useCanvasStore
+        .getState()
+        .getComponents(activeCanvasId)
+        .findIndex((c) => c.componentId === over.id);
+      if (overIndex === -1) return;
+      useCanvasStore
+        .getState()
+        .reorderComponent(activeCanvasId, active.id as string, overIndex);
     },
-    [activeCanvasId],
+    [activeCanvasId, moveComponent, setActiveCanvas],
   );
 
   const activeCanvas = canvases.find((c) => c.id === activeCanvasId);
 
   return (
-    <div
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-      className={cn("w-full h-full flex flex-col relative", className)}
-      {...props}
-    >
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        className={cn("w-full h-full flex flex-col relative", className)}
+        {...props}
+      >
       <div
         className={cn(
           "flex items-center overflow-x-auto p-2 pr-10 gap-1",
@@ -298,92 +367,93 @@ export const ComponentsCanvas: React.FC<
         )}
       >
         {canvases.map((c) => (
-          <div
-            key={c.id}
-            data-canvas-id={c.id}
-            onClick={() => {
-              setActiveCanvas(c.id);
-              setPendingDeleteCanvasId(null);
-            }}
-            className={cn(
-              "px-3 py-1 text-sm cursor-pointer whitespace-nowrap flex items-center gap-1 border-b-2",
-              activeCanvasId === c.id
-                ? "border-border text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {editingCanvasId === c.id ? (
-              <>
-                <input
-                  autoFocus
-                  value={editingName}
-                  onChange={(e) => setEditingName(e.target.value)}
-                  className="bg-transparent border-b border-border/50 focus:outline-none text-sm w-24"
-                />
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    saveRenameCanvas();
-                  }}
-                  className="ml-1 p-0.5 hover:text-foreground"
-                  title="Save"
-                >
-                  <CheckIcon className="h-3 w-3" />
-                </button>
-              </>
-            ) : (
-              <>
-                <span>{c.name}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startRenameCanvas(c.id);
-                  }}
-                  className="ml-1 p-0.5 hover:text-foreground"
-                  title="Rename"
-                >
-                  <PencilIcon className="h-3 w-3" />
-                </button>
-                {canvases.length > 1 &&
-                  (pendingDeleteCanvasId === c.id ? (
-                    <div className="ml-1 flex items-center gap-1 px-2 py-0.5 bg-red-100 dark:bg-red-400/30 rounded text-xs text-destructive dark:text-red-300">
-                      <span>Delete?</span>
+          <CanvasTab key={c.id} canvasId={c.id}>
+            <div
+              data-canvas-id={c.id}
+              onClick={() => {
+                setActiveCanvas(c.id);
+                setPendingDeleteCanvasId(null);
+              }}
+              className={cn(
+                "px-3 py-1 text-sm cursor-pointer whitespace-nowrap flex items-center gap-1 border-b-2",
+                activeCanvasId === c.id
+                  ? "border-border text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {editingCanvasId === c.id ? (
+                <>
+                  <input
+                    autoFocus
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    className="bg-transparent border-b border-border/50 focus:outline-none text-sm w-24"
+                  />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      saveRenameCanvas();
+                    }}
+                    className="ml-1 p-0.5 hover:text-foreground"
+                    title="Save"
+                  >
+                    <CheckIcon className="h-3 w-3" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>{c.name}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startRenameCanvas(c.id);
+                    }}
+                    className="ml-1 p-0.5 hover:text-foreground"
+                    title="Rename"
+                  >
+                    <PencilIcon className="h-3 w-3" />
+                  </button>
+                  {canvases.length > 1 &&
+                    (pendingDeleteCanvasId === c.id ? (
+                      <div className="ml-1 flex items-center gap-1 px-2 py-0.5 bg-red-100 dark:bg-red-400/30 rounded text-xs text-destructive dark:text-red-300">
+                        <span>Delete?</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCanvas(c.id, true);
+                          }}
+                          className="p-0.5 hover:text-red-900 dark:hover:text-red-100"
+                          title="Confirm delete"
+                        >
+                          <CheckIcon className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPendingDeleteCanvasId(null);
+                          }}
+                          className="p-0.5 hover:text-red-900 dark:hover:text-red-100"
+                          title="Cancel delete"
+                        >
+                          <XIcon className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteCanvas(c.id, true);
+                          handleDeleteCanvas(c.id);
                         }}
-                        className="p-0.5 hover:text-red-900 dark:hover:text-red-100"
-                        title="Confirm delete"
+                        className="ml-1 p-0.5 hover:text-foreground"
+                        title="Delete canvas"
                       >
-                        <CheckIcon className="h-3 w-3" />
+                        <TrashIcon className="h-3 w-3" />
                       </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPendingDeleteCanvasId(null);
-                        }}
-                        className="p-0.5 hover:text-red-900 dark:hover:text-red-100"
-                        title="Cancel delete"
-                      >
-                        <XIcon className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteCanvas(c.id);
-                      }}
-                      className="ml-1 p-0.5 hover:text-foreground"
-                      title="Delete canvas"
-                    >
-                      <TrashIcon className="h-3 w-3" />
-                    </button>
-                  ))}
-              </>
-            )}
-          </div>
+                    ))}
+                </>
+              )}
+            </div>
+          </CanvasTab>
         ))}
       </div>
 
@@ -423,21 +493,20 @@ export const ComponentsCanvas: React.FC<
             Drag components here
           </div>
         ) : (
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <SortableContext
-              items={activeCanvas.components.map((c) => c.componentId)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="grid gap-4">
-                {activeCanvas.components.map((c) => (
-                  <SortableItem key={c.componentId} componentProps={c} />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+          <SortableContext
+            items={activeCanvas.components.map((c) => c.componentId)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="grid gap-4">
+              {activeCanvas.components.map((c) => (
+                <SortableItem key={c.componentId} componentProps={c} />
+              ))}
+            </div>
+          </SortableContext>
         )}
       </div>
     </div>
+  </DndContext>
   );
 };
 

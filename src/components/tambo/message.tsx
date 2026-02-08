@@ -2,7 +2,7 @@
 
 import { markdownComponents } from "@/components/tambo/markdown-components";
 import { generateId, useCanvasStore } from "@/lib/canvas-storage";
-import { components } from "@/lib/tambo";
+import { components, shouldAutoAddToCanvas } from "@/lib/tambo";
 import {
   checkHasContent,
   getMessageImages,
@@ -882,8 +882,7 @@ function isDraggableComponent(componentType: string): boolean {
 
 /**
  * Displays the `renderedComponent` associated with an assistant message.
- * Shows a button to view in canvas if a canvas space exists, otherwise renders inline.
- * Only renders if the message role is 'assistant' and `message.renderedComponent` exists.
+ * Auto-adds TIL Log components to canvas, shows drag option for Graph components.
  * @component Message.RenderedComponentArea
  */
 const MessageRenderedComponentArea = React.forwardRef<
@@ -891,14 +890,83 @@ const MessageRenderedComponentArea = React.forwardRef<
   MessageRenderedComponentAreaProps
 >(({ className, children, ...props }, ref) => {
   const { message, role } = useMessageContext();
-  const { addComponent, activeCanvasId, createCanvas } = useCanvasStore();
+  const { addComponent, activeCanvasId, createCanvas, canvases } = useCanvasStore();
+  const { isIdle } = useTambo();
+  const [autoAddStatus, setAutoAddStatus] = React.useState<
+    "idle" | "added" | "failed"
+  >("idle");
 
   // Extract component info once to check if it's draggable
   const { componentType, componentProps } = React.useMemo(
     () => extractComponentInfo(message.renderedComponent),
     [message.renderedComponent],
   );
+  
   const canDrag = isDraggableComponent(componentType);
+  const shouldAutoAdd = shouldAutoAddToCanvas(componentType);
+  const hasRenderedComponent = !!message.renderedComponent;
+
+  const latestComponentPropsRef = React.useRef(componentProps);
+  React.useEffect(() => {
+    latestComponentPropsRef.current = componentProps;
+  }, [componentProps]);
+
+  const fallbackCanvasId = canvases[0]?.id;
+  const autoAddComponentId = React.useMemo(() => {
+    if (!shouldAutoAdd) return null;
+    return `tambo-msg-${message.id}-${componentType}`;
+  }, [componentType, message.id, shouldAutoAdd]);
+
+  const autoAddPayload = React.useMemo(() => {
+    if (!shouldAutoAdd || !autoAddComponentId) return null;
+    return {
+      componentId: autoAddComponentId,
+      _inCanvas: true,
+      _componentType: componentType,
+      _sourceMessageId: message.id,
+    };
+  }, [autoAddComponentId, componentType, message.id, shouldAutoAdd]);
+
+  // Auto-add TIL components to canvas
+  React.useEffect(() => {
+    if (!isIdle) {
+      return;
+    }
+    if (!autoAddPayload || autoAddStatus !== "idle" || !hasRenderedComponent) {
+      return;
+    }
+    
+    let targetCanvasId = activeCanvasId ?? fallbackCanvasId;
+    if (!targetCanvasId) {
+      const newCanvas = createCanvas("TIL Log");
+      targetCanvasId = newCanvas.id;
+    }
+
+    if (!targetCanvasId) {
+      setAutoAddStatus("failed");
+      return;
+    }
+
+    try {
+      addComponent(targetCanvasId, {
+        ...latestComponentPropsRef.current,
+        ...autoAddPayload,
+      });
+      setAutoAddStatus("added");
+    } catch (err) {
+      console.error("Failed to auto-add component to canvas", err);
+      setAutoAddStatus("failed");
+    }
+  }, [
+    isIdle,
+    autoAddPayload,
+    autoAddStatus,
+    hasRenderedComponent,
+    activeCanvasId,
+    fallbackCanvasId,
+    addComponent,
+    createCanvas,
+  ]);
 
   const addToDashboard = React.useCallback(() => {
     let targetCanvasId = activeCanvasId;
@@ -943,6 +1011,46 @@ const MessageRenderedComponentArea = React.forwardRef<
     return null;
   }
 
+  // For auto-added components, show a status message and avoid rendering inline.
+  if (shouldAutoAdd && autoAddStatus !== "failed") {
+    return (
+      <div
+        ref={ref}
+        className={cn("px-4 py-2", className)}
+        data-slot="message-rendered-component-area"
+        {...props}
+      >
+        {autoAddStatus === "added" ? (
+          <div className="inline-flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+            <svg
+              className="w-4 h-4 text-green-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+            <span>
+              Added <strong>{componentType}</strong> to canvas →
+            </span>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>
+              Adding <strong>{componentType}</strong> to canvas…
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       ref={ref}
@@ -978,6 +1086,7 @@ const MessageRenderedComponentArea = React.forwardRef<
     </div>
   );
 });
+
 MessageRenderedComponentArea.displayName = "Message.RenderedComponentArea";
 
 // --- Exports ---

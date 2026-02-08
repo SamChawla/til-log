@@ -1,110 +1,166 @@
-/**
- * @file tambo.ts
- * @description Central configuration file for Tambo components and tools
- *
- * This file serves as the central place to register your Tambo components and tools.
- * It exports arrays that will be used by the TamboProvider.
- *
- * Read more about Tambo at https://tambo.co/docs
- */
-
-import { Graph, graphSchema } from "@/components/tambo/graph";
-import { SelectForm, selectFormSchema } from "@/components/tambo/select-form";
-import type { TamboComponent } from "@tambo-ai/react";
-import { TamboTool } from "@tambo-ai/react";
 import { z } from "zod";
-import {
-  getSalesData,
-  getProducts,
-  getUserData,
-  getKPIs,
-} from "@/services/analytics-data";
+import { TamboComponent, TamboTool } from "@tambo-ai/react";
+import LogEntryCard from "@/components/til/LogEntryCard";
+import LogEntryForm from "@/components/til/LogEntryForm";
+import Dashboard from "@/components/til/Dashboard";
+import { 
+  getEntries, 
+  getGoals, 
+  saveEntry, 
+  calculateStreak, 
+  calculateLongestStreak,
+  getTopTags 
+} from "@/lib/store";
+import { dashboardStatsSchema, logEntrySchema, LogEntry } from "@/types/schemas";
+import { createLogEntryId } from "@/lib/ids";
 
-/**
- * tools
- *
- * This array contains all the Tambo tools that are registered for use within the application.
- * Each tool is defined with its name, description, and expected props. The tools
- * can be controlled by AI to dynamically fetch data based on user interactions.
- */
+// ============================================
+// TAMBO COMPONENTS
+// ============================================
 
-export const tools: TamboTool[] = [
+export const components: TamboComponent[] = [
   {
-    name: "getSalesData",
-    description:
-      "Get monthly sales revenue and units data. Can filter by region (North, South, East, West) or category (Electronics, Clothing, Home)",
-    tool: getSalesData,
-    toolSchema: z.function().args(
-      z
-        .object({
-          region: z.string().optional(),
-          category: z.string().optional(),
-        })
-        .default({}),
-    ),
+    name: "LogEntryForm",
+    description: "A form to log what the user learned today. Use this when the user wants to add a new learning entry, log something they learned, or record a TIL.",
+    component: LogEntryForm,
+    propsSchema: z.object({
+      suggestedTags: z.array(z.string()).optional().describe("Suggested tags based on context"),
+    }),
   },
   {
-    name: "getProducts",
-    description:
-      "Get top products with sales and revenue information. Can filter by category (Electronics, Furniture, Appliances)",
-    tool: getProducts,
-    toolSchema: z.function().args(
-      z
-        .object({
-          category: z.string().optional(),
-        })
-        .default({}),
-    ),
+    name: "LogEntryCard",
+    description: "Displays a single learning log entry with content, tags, and source. Use this to show a specific learning entry.",
+    component: LogEntryCard,
+    propsSchema: z.object({
+      entry: z.object({
+        id: z.string(),
+        content: z.string(),
+        tags: z.array(z.string()),
+        source: z.string().optional(),
+        sourceName: z.string().optional(),
+        goalId: z.string().optional(),
+        createdAt: z.string(),
+      }).describe("The log entry to display"),
+    }),
   },
   {
-    name: "getUserData",
-    description:
-      "Get monthly user growth and activity data. Can filter by segment (Free, Premium, Enterprise)",
-    tool: getUserData,
-    toolSchema: z.function().args(
-      z
-        .object({
-          segment: z.string().optional(),
-        })
-        .default({}),
-    ),
-  },
-  {
-    name: "getKPIs",
-    description:
-      "Get key business performance indicators. Can filter by category (Financial, Growth, Quality, Retention, Marketing)",
-    tool: getKPIs,
-    toolSchema: z.function().args(
-      z
-        .object({
-          category: z.string().optional(),
-        })
-        .default({}),
-    ),
+    name: "Dashboard",
+    description: "Shows the user's learning dashboard with stats, streaks, activity chart, and top topics. Use this when the user wants to see their progress, stats, dashboard, or overview.",
+    component: Dashboard,
+    propsSchema: z.object({
+      title: z.string().optional().describe("Custom title for the dashboard"),
+    }),
   },
 ];
 
-/**
- * components
- *
- * This array contains all the Tambo components that are registered for use within the application.
- * Each component is defined with its name, description, and expected props. The components
- * can be controlled by AI to dynamically render UI elements based on user interactions.
- */
-export const components: TamboComponent[] = [
+type ComponentUiCapabilities = {
+  autoAddToCanvas?: boolean;
+};
+
+const componentUiCapabilities: Record<string, ComponentUiCapabilities> = {
+  Dashboard: { autoAddToCanvas: true },
+  LogEntryForm: { autoAddToCanvas: true },
+  LogEntryCard: { autoAddToCanvas: true },
+};
+
+export function shouldAutoAddToCanvas(componentType: string): boolean {
+  return !!componentUiCapabilities[componentType]?.autoAddToCanvas;
+}
+
+// ============================================
+// TAMBO TOOLS
+// ============================================
+
+export const tools: TamboTool[] = [
   {
-    name: "Graph",
-    description:
-      "Use this when you want to display a chart. It supports bar, line, and pie charts. When you see data generally use this component. IMPORTANT: When asked to create a graph, always generate it first in the chat - do NOT add it directly to the canvas/dashboard. Let the user decide if they want to add it.",
-    component: Graph,
-    propsSchema: graphSchema,
+    name: "get-all-entries",
+    description: "Get all learning log entries. Use this to retrieve the user's learning history.",
+    tool: () => {
+      const entries = getEntries();
+      return entries;
+    },
+    inputSchema: z.object({}),
+    outputSchema: z.array(z.object({
+      id: z.string(),
+      content: z.string(),
+      tags: z.array(z.string()),
+      source: z.string().optional(),
+      sourceName: z.string().optional(),
+      createdAt: z.string(),
+    })),
   },
   {
-    name: "SelectForm",
-    description:
-      "ALWAYS use this component instead of listing options as bullet points in text. Whenever you need to ask the user a question and would normally follow up with bullet points or numbered options, use this component instead. For yes/no or single-choice questions, use mode='single'. For questions where the user can select multiple options, use mode='multi' (default). Each group has a label (the question) and options (the choices). Examples: 'Would you like to continue?' with Yes/No options, or 'Which regions interest you?' with multiple region options.",
-    component: SelectForm,
-    propsSchema: selectFormSchema,
+    name: "get-learning-stats",
+    description: "Get statistics about the user's learning progress including streak, total entries, and top tags.",
+    tool: () => {
+      const entries = getEntries();
+      const goals = getGoals();
+      
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const thisWeekEntries = entries.filter(
+        (e) => new Date(e.createdAt) >= weekAgo
+      ).length;
+
+      return {
+        totalEntries: entries.length,
+        currentStreak: calculateStreak(entries),
+        longestStreak: calculateLongestStreak(entries),
+        topTags: getTopTags(entries, 5),
+        thisWeekEntries,
+        activeGoals: goals.filter((g) => g.status === "active").length,
+      };
+    },
+    inputSchema: z.object({}),
+    outputSchema: dashboardStatsSchema,
   },
-  // Add more components here
+  {
+    name: "search-entries-by-tag",
+    description: "Search learning entries by a specific tag. Use this when the user wants to see entries about a specific topic.",
+    tool: ({ tag }: { tag: string }) => {
+      const entries = getEntries();
+      return entries.filter((e) => 
+        e.tags.some((t) => t.toLowerCase().includes(tag.toLowerCase()))
+      );
+    },
+    inputSchema: z.object({
+      tag: z.string().describe("The tag to search for"),
+    }),
+    outputSchema: z.array(z.object({
+      id: z.string(),
+      content: z.string(),
+      tags: z.array(z.string()),
+      source: z.string().optional(),
+      sourceName: z.string().optional(),
+      createdAt: z.string(),
+    })),
+  },
+  {
+    name: "add-learning-entry",
+    description: "Add a new learning entry directly. Use this when the user describes what they learned in conversation.",
+    tool: ({ content, tags, source, sourceName }: { 
+      content: string; 
+      tags: string[]; 
+      source?: string; 
+      sourceName?: string;
+    }) => {
+      const entry: LogEntry = {
+        id: createLogEntryId(),
+        content,
+        tags,
+        source,
+        sourceName,
+        createdAt: new Date().toISOString(),
+      };
+      saveEntry(entry);
+      return entry;
+    },
+    inputSchema: z.object({
+      content: z.string().describe("What the user learned"),
+      tags: z.array(z.string()).describe("Relevant tags for the learning"),
+      source: z.string().optional().describe("URL source if provided"),
+      sourceName: z.string().optional().describe("Name of the source"),
+    }),
+    outputSchema: logEntrySchema,
+  },
 ];
