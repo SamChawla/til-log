@@ -6,6 +6,7 @@ const fallbackCounters: Record<IdPrefix, number> = {
 };
 
 function createId(prefix: IdPrefix): string {
+  // IDs are persisted and should be treated as opaque strings (do not parse for ordering).
   const uuid =
     typeof globalThis.crypto !== "undefined" &&
     typeof globalThis.crypto.randomUUID === "function"
