@@ -3,18 +3,13 @@
 import { useState } from "react";
 import { Goal } from "@/types/schemas";
 import { saveGoal } from "@/lib/store";
+import { createGoalId } from "@/lib/ids";
 import { Target, Plus, X } from "lucide-react";
 import { Toast } from "@/components/ui/toast";
 
 interface GoalFormProps {
   onSave?: (goal: Goal) => void;
   suggestedTags?: string[];
-}
-
-let goalCounter = 0;
-function createGoalId(): string {
-  goalCounter++;
-  return `goal-${Date.now()}-${goalCounter}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export default function GoalForm({ onSave, suggestedTags = [] }: GoalFormProps) {

@@ -12,7 +12,7 @@ import {
   calculateStreak, calculateLongestStreak, getTopTags, clearAllData,
 } from "@/lib/store";
 import { dashboardStatsSchema, logEntrySchema, goalSchema, LogEntry, Goal } from "@/types/schemas";
-import { createLogEntryId } from "@/lib/ids";
+import { createGoalId, createLogEntryId } from "@/lib/ids";
 
 export const components: TamboComponent[] = [
   {
@@ -175,7 +175,7 @@ export const tools: TamboTool[] = [
     description: "Create a new learning goal. Use when the user wants to set a learning target.",
     tool: ({ title, description, deadline, relatedTags, targetEntries }: { title: string; description?: string; deadline?: string; relatedTags: string[]; targetEntries?: number }) => {
       const goal: Goal = {
-        id: `goal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        id: createGoalId(),
         title, description, deadline, relatedTags,
         targetEntries: targetEntries ?? 10,
         status: "active",

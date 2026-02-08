@@ -1,13 +1,13 @@
 let fallbackCounter = 0;
 
-export function createLogEntryId(): string {
+function createId(prefix: "entry" | "goal"): string {
   const uuid =
     typeof globalThis.crypto !== "undefined" &&
     typeof globalThis.crypto.randomUUID === "function"
       ? globalThis.crypto.randomUUID()
       : null;
 
-  if (uuid) return `entry-${uuid}`;
+  if (uuid) return `${prefix}-${uuid}`;
 
   const perfNow =
     typeof globalThis.performance !== "undefined" &&
@@ -22,5 +22,13 @@ export function createLogEntryId(): string {
       ? `${Date.now()}-${String(perfNow).replace(".", "-")}`
       : `${Date.now()}`;
 
-  return `entry-${time}-${fallbackCounter}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}-${time}-${fallbackCounter}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function createLogEntryId(): string {
+  return createId("entry");
+}
+
+export function createGoalId(): string {
+  return createId("goal");
 }
