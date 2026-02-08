@@ -5,6 +5,7 @@ import { LogEntry } from "@/types/schemas";
 import { saveEntry } from "@/lib/store";
 import { createLogEntryId } from "@/lib/ids";
 import { Plus, Link, Sparkles } from "lucide-react";
+import { Toast } from "@/components/ui/toast";
 
 interface LogEntryFormProps {
   onSave?: (entry: LogEntry) => void;
@@ -39,7 +40,7 @@ function extractTags(content: string): string[] {
     }
   }
 
-  return foundTags.slice(0, 5); // Max 5 tags
+  return foundTags.slice(0, 5);
 }
 
 export default function LogEntryForm({ onSave, suggestedTags = [] }: LogEntryFormProps) {
@@ -49,6 +50,7 @@ export default function LogEntryForm({ onSave, suggestedTags = [] }: LogEntryFor
   const [customTags, setCustomTags] = useState<string[]>([]);
   const [showSourceInput, setShowSourceInput] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
   const autoTags = extractTags(content);
   const allTags = [...new Set([...autoTags, ...customTags])];
@@ -77,13 +79,9 @@ export default function LogEntryForm({ onSave, suggestedTags = [] }: LogEntryFor
     setCustomTags([]);
     setShowSourceInput(false);
     setIsSaving(false);
-  };
 
-  const addCustomTag = (tag: string) => {
-    const cleanTag = tag.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (cleanTag && !customTags.includes(cleanTag)) {
-      setCustomTags([...customTags, cleanTag]);
-    }
+    // Show toast
+    setShowToast(true);
   };
 
   const removeTag = (tag: string) => {
@@ -92,6 +90,15 @@ export default function LogEntryForm({ onSave, suggestedTags = [] }: LogEntryFor
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+      {showToast && (
+        <Toast
+          message="Learning entry saved!"
+          type="success"
+          duration={3000}
+          onClose={() => setShowToast(false)}
+        />
+      )}
+
       <div className="flex items-center gap-2 mb-4">
         <Sparkles className="w-5 h-5 text-indigo-500" />
         <h3 className="font-semibold text-gray-800">What did you learn today?</h3>

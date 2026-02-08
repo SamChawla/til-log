@@ -240,7 +240,7 @@ export const ComponentsCanvas: React.FC<
     const { canvasId, componentId, _componentType } = componentProps;
 
     // Check if this component has interactive elements (forms, inputs)
-    const isInteractiveComponent = ["LogEntryForm", "GoalCard", "ExportPreview"].includes(_componentType || "");
+    const isInteractiveComponent = ["LogEntryForm", "GoalCard", "GoalForm", "ExportPreview"].includes(_componentType || "");
 
     return (
       <div className="relative group">

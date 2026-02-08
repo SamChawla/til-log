@@ -1,13 +1,19 @@
-let fallbackCounter = 0;
+type IdPrefix = "entry" | "goal";
 
-export function createLogEntryId(): string {
+const fallbackCounters: Record<IdPrefix, number> = {
+  entry: 0,
+  goal: 0,
+};
+
+function createId(prefix: IdPrefix): string {
+  // IDs are persisted and should be treated as opaque strings (do not parse for ordering).
   const uuid =
     typeof globalThis.crypto !== "undefined" &&
     typeof globalThis.crypto.randomUUID === "function"
       ? globalThis.crypto.randomUUID()
       : null;
 
-  if (uuid) return `entry-${uuid}`;
+  if (uuid) return `${prefix}-${uuid}`;
 
   const perfNow =
     typeof globalThis.performance !== "undefined" &&
@@ -15,12 +21,20 @@ export function createLogEntryId(): string {
       ? globalThis.performance.now()
       : null;
 
-  fallbackCounter += 1;
+  fallbackCounters[prefix] += 1;
 
   const time =
     typeof perfNow === "number"
       ? `${Date.now()}-${String(perfNow).replace(".", "-")}`
       : `${Date.now()}`;
 
-  return `entry-${time}-${fallbackCounter}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}-${time}-${fallbackCounters[prefix]}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function createLogEntryId(): string {
+  return createId("entry");
+}
+
+export function createGoalId(): string {
+  return createId("goal");
 }
