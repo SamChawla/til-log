@@ -12,6 +12,86 @@ As developers, we learn something new every single day — a new API, a debuggin
 
 **TIL Log** solves this by making it effortless to capture daily learnings through conversation with AI, while providing streak tracking, goal setting, and intelligent analytics to help you build a sustainable learning habit.
 
+## Get Started
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         TIL Log — App                           │
+│                                                                 │
+│  ┌──────────────┐     ┌──────────────────────────────────────┐  │
+│  │              │     │           Tambo AI Engine             │  │
+│  │   Chat       │     │                                      │  │
+│  │   Panel      │────▶│  ┌─────────┐   ┌──────────────────┐ │  │
+│  │              │     │  │ Intent  │   │ Component/Tool   │ │  │
+│  │  (Message    │     │  │ Parser  │──▶│ Selector         │ │  │
+│  │   Thread)    │     │  └─────────┘   └────────┬─────────┘ │  │
+│  │              │     │                         │            │  │
+│  └──────────────┘     └─────────────────────────┼────────────┘  │
+│                                                 │               │
+│                            ┌────────────────────┼──────┐        │
+│                            │                    ▼      │        │
+│                   ┌────────┴────────┐   ┌─────────────┐│        │
+│                   │  Local Tools    │   │ Generative  ││        │
+│                   │  (10 tools)     │   │ Components  ││        │
+│                   │                 │   │ (7 comps)   ││        │
+│                   │ • get-entries   │   │             ││        │
+│                   │ • add-entry     │   │ • Dashboard ││        │
+│                   │ • get-stats     │   │ • LogEntry  ││        │
+│                   │ • add-goal      │   │   Card/Form ││        │
+│                   │ • update-goal   │   │ • GoalCard  ││        │
+│                   │ • delete-goal   │   │ • GoalForm  ││        │
+│                   │ • search-tags   │   │ • Analytics ││        │
+│                   │ • get-analytics │   │ • Suggest-  ││        │
+│                   │ • clear-data    │   │   ions      ││        │
+│                   └────────┬────────┘   └──────┬──────┘│        │
+│                            │                   │       │        │
+│                            ▼                   ▼       │        │
+│  ┌──────────────────────────────────────────────────┐  │        │
+│  │              Canvas (Drag & Drop)                │  │        │
+│  │                                                  │  │        │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │  │        │
+│  │  │Dashboard │ │GoalCard  │ │Analytics         │ │  │        │
+│  │  │  ┌────┐  │ │ Progress │ │ ┌──────────────┐ │ │  │        │
+│  │  │  │🔥 5│  │ │ ████░░░  │ │ │▓▓░░▓▓▓░▓▓▓▓ │ │ │  │        │
+│  │  │  └────┘  │ │ 60%      │ │ │  Heatmap     │ │ │  │        │
+│  │  │ Streak   │ │          │ │ └──────────────┘ │ │  │        │
+│  │  └──────────┘ └──────────┘ └──────────────────┘ │  │        │
+│  └──────────────────────────────────────────────────┘  │        │
+│                            │                           │        │
+│                            ▼                           │        │
+│              ┌──────────────────────┐                  │        │
+│              │   localStorage       │                  │        │
+│              │                      │                  │        │
+│              │ • til-log-entries     │                  │        │
+│              │ • til-log-goals      │                  │        │
+│              │ • tambo-canvas-state  │                  │        │
+│              └──────────────────────┘                  │        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Data Flow
+
+```
+User types: "I learned about Docker volumes today"
+  │
+  ▼
+Tambo AI parses intent → selects `add-learning-entry` tool
+  │
+  ▼
+Tool runs: creates entry { content, tags: ["docker","volumes"], timestamp }
+  │
+  ▼
+Entry saved to localStorage → TIL_STORE_CHANGED_EVENT emitted
+  │
+  ▼
+Tambo renders LogEntryCard on canvas + Toast: "Entry saved! 🎉"
+  │
+  ▼
+Dashboard / Analytics auto-refresh via event listener
+```
+
 ---
 
 ## ✨ Features
@@ -176,21 +256,6 @@ All data is stored in **browser `localStorage`**:
 - Click the **"Clear data"** button on the Dashboard (requires confirmation)
 - Or tell the AI: *"Clear all my data"*
 - Or in browser console: `localStorage.removeItem('til-log-entries'); localStorage.removeItem('til-log-goals');`
-
----
-
-## 🏆 Hackathon Judging Criteria Alignment
-
-| Criteria | How TIL Log Addresses It |
-|---|---|
-| **Potential Impact** | Solves a real problem — developers forget what they learn daily. Builds learning habits through streaks and goals. |
-| **Creativity & Originality** | Unique use of Generative UI for a personal learning tracker — the AI renders dashboards, analytics, and suggestions contextually. |
-| **Learning & Growth** | Built from scratch during the hackathon using Tambo SDK, learning the generative component and tool registration patterns. |
-| **Technical Implementation** | 7 components, 10 tools, Zod schemas, canvas system, localStorage persistence, toast notifications, all integrated with Tambo. |
-| **Aesthetics & UX** | Clean gradient UI, responsive layout, toast feedback, confirmation dialogs, activity heatmaps, and progress bars. |
-| **Best Use of Tambo** | Leverages generative components, local tools, interactable components, canvas auto-add, and schema-driven props — the AI truly decides the UI. |
-
----
 
 ## 🤝 Contributing
 
