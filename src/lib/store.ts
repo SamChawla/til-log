@@ -1,13 +1,12 @@
 import { z } from "zod";
 import { logEntrySchema, goalSchema, type LogEntry, type Goal } from "@/types/schemas";
 
-// Simple in-memory store (we'll use localStorage for persistence)
+// Data is stored in browser localStorage under these keys
 const STORAGE_KEYS = {
   ENTRIES: "til-log-entries",
   GOALS: "til-log-goals",
 };
 
-// Helper to safely access localStorage
 const isBrowser = typeof window !== "undefined";
 
 export const TIL_STORE_CHANGED_EVENT = "til-store-changed";
@@ -43,7 +42,9 @@ function emitStoreChanged(): void {
   window.dispatchEvent(new Event(TIL_STORE_CHANGED_EVENT));
 }
 
+// ==================
 // Log Entries
+// ==================
 export function getEntries(): LogEntry[] {
   return readLocalStorageJson(STORAGE_KEYS.ENTRIES, entriesSchema, []);
 }
@@ -51,7 +52,7 @@ export function getEntries(): LogEntry[] {
 export function saveEntry(entry: LogEntry): void {
   if (!isBrowser) return;
   const entries = getEntries();
-  entries.unshift(entry); // Add to beginning
+  entries.unshift(entry);
   localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(entries));
   emitStoreChanged();
 }
@@ -74,7 +75,9 @@ export function deleteEntry(id: string): void {
   emitStoreChanged();
 }
 
+// ==================
 // Goals
+// ==================
 export function getGoals(): Goal[] {
   return readLocalStorageJson(STORAGE_KEYS.GOALS, goalsSchema, []);
 }
@@ -105,42 +108,53 @@ export function deleteGoal(id: string): void {
   emitStoreChanged();
 }
 
+// ==================
+// Clear all data
+// ==================
+export function clearAllData(): void {
+  if (!isBrowser) return;
+  localStorage.removeItem(STORAGE_KEYS.ENTRIES);
+  localStorage.removeItem(STORAGE_KEYS.GOALS);
+  emitStoreChanged();
+}
+
+// ==================
 // Stats helpers
+// ==================
 export function calculateStreak(entries: LogEntry[]): number {
   if (entries.length === 0) return 0;
-  
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const sortedDates = entries
     .map((e) => {
       const d = new Date(e.createdAt);
       d.setHours(0, 0, 0, 0);
       return d.getTime();
     })
-    .filter((v, i, a) => a.indexOf(v) === i) // unique dates
-    .sort((a, b) => b - a); // newest first
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .sort((a, b) => b - a);
 
   let streak = 0;
   let checkDate = today.getTime();
-  
-  // Check if there's an entry today or yesterday to start the streak
+
   if (sortedDates[0] !== checkDate) {
-    checkDate -= 86400000; // Check yesterday
+    checkDate -= 86400000;
     if (sortedDates[0] !== checkDate) {
-      return 0; // No entry today or yesterday
+      return 0;
     }
   }
-  
+
   for (const date of sortedDates) {
     if (date === checkDate) {
       streak++;
-      checkDate -= 86400000; // Move to previous day
+      checkDate -= 86400000;
     } else if (date < checkDate) {
-      break; // Gap in streak
+      break;
     }
   }
-  
+
   return streak;
 }
 
@@ -173,13 +187,13 @@ export function calculateLongestStreak(entries: LogEntry[]): number {
 
 export function getTopTags(entries: LogEntry[], limit = 5): { tag: string; count: number }[] {
   const tagCounts: Record<string, number> = {};
-  
+
   entries.forEach((entry) => {
     entry.tags.forEach((tag) => {
       tagCounts[tag] = (tagCounts[tag] || 0) + 1;
     });
   });
-  
+
   return Object.entries(tagCounts)
     .map(([tag, count]) => ({ tag, count }))
     .sort((a, b) => b.count - a.count)
